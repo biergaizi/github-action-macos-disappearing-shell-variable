@@ -1,0 +1,72 @@
+name: "CI"
+
+on:
+  push:
+    branches:
+        - main
+  pull_request:
+      branches:
+          - main
+
+jobs:
+  macOS:
+    name: "macOS (ARM, latest)"
+
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Prepare venv
+        run: |
+          echo 'export CXXFLAGS="-std=c++11"' >> ~/.zprofile
+
+          # Use a strict shell, stop the interpreter on various errors,
+          # so errors such as undefined variables are caught by CI/CD
+          # instead of ignored. Use printf because it contains options,
+          # which can be difficult to escape.
+          printf "%s\n" "set -euo pipefail" >> ~/.zprofile
+
+          # For #!/bin/bash scripts.
+          # To ensure ~/.bash_profile, BASH_ENV must be set for the current
+          # default shell of which bash is launched from.
+          echo 'export BASH_ENV="$HOME/.bash_profile"' >> ~/.zprofile
+
+          # GitHub's default ~/.bash_profile contains:
+          #
+          #     POWERSHELL_DISTRIBUTION_CHANNEL=GitHub-Actions-macos15
+          #
+          # WITHOUT ending with "\n". Add a "\n" manually, otherwise
+          # the command is invalid.
+          printf "\n%s\n" "set -euo pipefail" >> ~/.bash_profile
+
+          mkdir -p $HOME/venv
+          python3 -m venv $HOME/venv
+
+          source $HOME/venv/bin/activate
+          pip3 install setuptools
+
+      - name: Reproducing GitHub Action Bug
+        run: |
+          echo "~/.zprofile"
+          cat ~/.zprofile
+
+          echo "~/.bash_profile"
+          cat ~/.bash_profile
+
+          echo "~/.bashrc"
+          cat ~/.bashrc
+
+          cd $GITHUB_WORKSPACE
+          source ~/.zprofile
+
+          echo "old $PATH"
+          source $HOME/venv/bin/activate
+          echo "new $PATH"
+
+          if ./path.sh ~/opt --python; then
+            echo "1"
+          else
+            echo "0"
+          fi
